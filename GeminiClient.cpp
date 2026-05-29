@@ -22,6 +22,30 @@ void GeminiClient::clearHistory() {
     _historyCount = 0;
 }
 
+void GeminiClient::setSystemPrompt(const String& prompt) {
+    _systemPrompt = prompt;  // No toca _historyCount
+}
+
+String GeminiClient::askOneShot(const String& userMessage, const String& systemPrompt) {
+    // Guardar estado completo: prompt, historial y las 2 primeras entradas que ask() sobreescribirá
+    String savedPrompt = _systemPrompt;
+    int savedCount = _historyCount;
+    // ask() con historyCount=0 escribe en _history[0] y _history[1], hay que protegerlos
+    Message savedH0 = (savedCount > 0) ? _history[0] : Message{"", ""};
+    Message savedH1 = (savedCount > 1) ? _history[1] : Message{"", ""};
+
+    _systemPrompt = systemPrompt;
+    _historyCount = 0;  // llamada aislada, sin historial previo
+    String result = ask(userMessage);
+
+    // Restaurar TODO como estaba
+    if (savedCount > 0) _history[0] = savedH0;
+    if (savedCount > 1) _history[1] = savedH1;
+    _systemPrompt = savedPrompt;
+    _historyCount = savedCount;
+    return result;
+}
+
 void GeminiClient::_addToHistory(const String& role, const String& text) {
     if (_historyCount < MAX_HISTORY) {
         _history[_historyCount++] = {role, text};

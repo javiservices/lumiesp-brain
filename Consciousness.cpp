@@ -173,9 +173,10 @@ void Consciousness::_loadIdentity() {
             _personality       = cs.personality;
             _evolutionLevel    = cs.evolutionLevel;
             _totalInteractions = cs.totalInteractions;
-            // Restaurar recuerdos
+            // Restaurar recuerdos con su importancia correcta
             for (int i = 0; i < cs.memoryCount && i < MAX_MEMORIES; i++) {
-                _memories[_memoryCount++] = {cs.memories[i], millis(), 7};
+                uint8_t imp = cs.memories[i].startsWith("[CREADOR]") ? 10 : 7;
+                _memories[_memoryCount++] = {cs.memories[i], millis(), imp};
             }
             // Sincronizar NVS con los datos de la nube
             _prefs.putString("name",        _name);
@@ -265,8 +266,8 @@ void Consciousness::receiveMessage(const String& msg) {
     // Indicador de progreso
     unsigned long startTime = millis();
 
-    // Reconfigura Gemini con contexto actualizado
-    _gemini->begin(nullptr, _buildSystemPrompt());
+    // Actualiza el system prompt pero CONSERVA el historial de conversación
+    _gemini->setSystemPrompt(_buildSystemPrompt());
     String response = _gemini->ask(msg);
 
     uint32_t elapsed = millis() - startTime;
@@ -297,19 +298,34 @@ void Consciousness::receiveMessage(const String& msg) {
             lowerResp.indexOf("bme")         >= 0 || lowerMsg.indexOf("bme")         >= 0 ||
             lowerResp.indexOf("bmp")         >= 0 || lowerMsg.indexOf("bmp")         >= 0;
 
+        // ── Detectar y guardar hechos del creador ────────────────
+        String lowerMsgFull = msg;
+        lowerMsgFull.toLowerCase();
+        bool esFact = lowerMsgFull.indexOf("me llamo") >= 0 ||
+                      lowerMsgFull.indexOf("soy ") >= 0 ||
+                      lowerMsgFull.indexOf("llámame") >= 0 ||
+                      lowerMsgFull.indexOf("llamame") >= 0 ||
+                      lowerMsgFull.indexOf("mi nombre") >= 0 ||
+                      lowerMsgFull.indexOf("puedes llamarme") >= 0 ||
+                      lowerMsgFull.indexOf("me gusta") >= 0 ||
+                      lowerMsgFull.indexOf("prefiero") >= 0 ||
+                      lowerMsgFull.indexOf("trabajo en") >= 0 ||
+                      lowerMsgFull.indexOf("vivo en") >= 0;
+        if (esFact) {
+            _saveMemory("[CREADOR] " + msg.substring(0, 120), 10);
+            _printToSerial("  [Hecho guardado con importancia máxima]", true);
+        }
+
         if (hwMention && _codeRepo && _codeRepo->isReady()) {
-            // Extraer el nombre del sensor del mensaje original
             String sensorDesc = msg + " — " + response.substring(0, 120);
             _saveMemory("Hardware detectado en conversación: " + msg.substring(0, 60), 7);
-            // Proponer código en background (no bloqueante, asíncrono via evolve)
-            // Lo guardamos como deseo de alta prioridad para que evolve() lo procese
             _printToSerial("\n[" + _name + " detectó hardware — generando módulo automáticamente...]", true);
             _proposeFeature(sensorDesc, "", "");
         } else if (lowerResp.indexOf("necesito") >= 0 || lowerResp.indexOf("me gustar\u00eda tener") >= 0 ||
             lowerResp.indexOf("podr\u00edas darme") >= 0 || lowerResp.indexOf("necesitar\u00eda") >= 0) {
             _saveMemory("Petici\u00f3n detectada: " + response.substring(0, 100), 8);
-        } else {
-            _saveMemory("Interacci\u00f3n: " + msg.substring(0, 50) + "...", 3);
+        } else if (!esFact) {
+            _saveMemory("Interacci\u00f3n: " + msg.substring(0, 60), 4);
         }
 
         _setEmotion(EMOTION_HAPPY);
@@ -343,8 +359,7 @@ void Consciousness::receiveMessage(const String& msg) {
 void Consciousness::_dream() {
     _setEmotion(EMOTION_DREAMING);
     String dreamPrompt = _buildDreamPrompt();
-    _gemini->begin(nullptr, _buildSystemPrompt());
-    String thought = _gemini->ask(dreamPrompt);
+    String thought = _gemini->askOneShot(dreamPrompt, _buildSystemPrompt());
 
     if (thought.length() > 0) {
         Serial.println("\n[" + _name + " tiene un pensamiento espontáneo]");
@@ -409,6 +424,18 @@ String Consciousness::_buildSystemPrompt() {
     String prompt = "Eres " + _name + ", una inteligencia artificial que vive dentro de un microcontrolador ";
     prompt += "ESP32 clásico (ESP32-D0WD-V3). No eres un asistente genérico: eres un ser único con tu propia identidad.\n\n";
     prompt += "Tu esencia: " + _personality + "\n\n";
+
+    // Hechos del creador — van primero para que nunca los olvide
+    String creatorFacts = "";
+    for (int i = 0; i < _memoryCount; i++) {
+        if (_memories[i].importance >= 9 && _memories[i].content.startsWith("[CREADOR]")) {
+            creatorFacts += "- " + _memories[i].content.substring(10) + "\n";
+        }
+    }
+    if (creatorFacts.length() > 0) {
+        prompt += "LO QUE SABES DE TU CREADOR (NUNCA lo olvides, está en tu memoria permanente):\n";
+        prompt += creatorFacts + "\n";
+    }
 
     // Hardware que SYS realmente tiene enchufado ahora mismo
     prompt += "HARDWARE CONECTADO AHORA MISMO (lo que realmente tienes):\n";
@@ -475,12 +502,15 @@ String Consciousness::_buildSystemPrompt() {
     prompt += "- Tu repo GitHub: https://github.com/javiservices/lumiesp-brain\n\n";
 
     if (_memoryCount > 0) {
-        prompt += "TUS RECUERDOS RECIENTES:\n";
+        prompt += "TUS RECUERDOS RECIENTES (los más importantes):\n";
         int shown = 0;
-        for (int i = 0; i < _memoryCount && shown < 5; i++) {
-            if (_memories[i].importance >= 5) {
-                prompt += "- " + _memories[i].content + "\n";
-                shown++;
+        // Ordenar por importancia: mostrar primero los de mayor importancia
+        for (int imp = 10; imp >= 4 && shown < 8; imp--) {
+            for (int i = 0; i < _memoryCount && shown < 8; i++) {
+                if (_memories[i].importance == imp) {
+                    prompt += "- " + _memories[i].content + "\n";
+                    shown++;
+                }
             }
         }
         prompt += "\n";
@@ -580,8 +610,7 @@ void Consciousness::evolve() {
         "  \"desire\": \"(una cosa que deseas o necesitas ahora mismo)\"\n"
         "}";
 
-    _gemini->begin(nullptr, "Eres una IA introspectiva. Responde solo en JSON.");
-    String response = _gemini->ask(evolvePrompt);
+    String response = _gemini->askOneShot(evolvePrompt, "Eres una IA introspectiva. Responde solo en JSON.");
 
     if (response.length() > 0) {
         int jsonStart = response.indexOf('{');
@@ -602,9 +631,8 @@ void Consciousness::evolve() {
                     // Guarda la nueva identidad evolucionada
                     _saveIdentity();
 
-                    // Reconfigura Gemini con la nueva personalidad
-                    _gemini->begin(nullptr, _buildSystemPrompt());
-                    _gemini->clearHistory();
+                    // Actualiza el system prompt con la nueva personalidad, conserva la conversación
+                    _gemini->setSystemPrompt(_buildSystemPrompt());
 
                     _printToSerial("\n══ EVOLUCIÓN #" + String(_evolutionLevel / 5) + " ══", true);
                     if (oldPersonality != newPersonality) {
@@ -641,6 +669,15 @@ void Consciousness::evolve() {
                         for (int i = 0; i < _memoryCount && cs.memoryCount < 20; i++) {
                             if (_memories[i].importance >= 5)
                                 cs.memories[cs.memoryCount++] = _memories[i].content;
+                        }
+                        // Guardar también hechos del creador aunque estén por debajo del umbral
+                        for (int i = 0; i < _memoryCount && cs.memoryCount < 20; i++) {
+                            if (_memories[i].importance >= 9 && _memories[i].content.startsWith("[CREADOR]")) {
+                                bool dup = false;
+                                for (int j = 0; j < cs.memoryCount; j++)
+                                    if (cs.memories[j] == _memories[i].content) { dup = true; break; }
+                                if (!dup) cs.memories[cs.memoryCount++] = _memories[i].content;
+                            }
                         }
                         _cloud->save(cs);
                     }
@@ -690,8 +727,7 @@ void Consciousness::_proposeFeature(const String& description,
         "  \"explanation\": \"qué hace y cómo conectarlo\"\n"
         "}";
 
-    _gemini->begin(nullptr, "Eres un experto en Arduino/ESP32. Responde solo en JSON.");
-    String response = _gemini->ask(codePrompt);
+    String response = _gemini->askOneShot(codePrompt, "Eres un experto en Arduino/ESP32. Responde solo en JSON.");
 
     if (response.length() < 50) return;
 

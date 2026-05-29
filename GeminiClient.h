@@ -20,7 +20,7 @@
 #define GROQ_MODEL      "openai/gpt-oss-120b"
 
 #define GEMINI_TIMEOUT  20000
-#define MAX_HISTORY     10
+#define MAX_HISTORY     20
 
 struct Message {
     String role;
@@ -34,6 +34,10 @@ public:
     void begin(const char* apiKey, const String& systemPrompt);
     String ask(const String& userMessage);
     void clearHistory();
+    // Actualiza solo el system prompt SIN borrar el historial de conversación
+    void setSystemPrompt(const String& prompt);
+    // Pregunta única con system prompt propio, no afecta al historial principal
+    String askOneShot(const String& userMessage, const String& systemPrompt);
 
     int getRequestCount() { return _requestCount; }
     int getLastHttpCode() { return _lastHttpCode; }
