@@ -61,6 +61,9 @@ public:
     // Notifica cambio de estado WiFi
     void setWifiStatus(bool connected);
 
+    // Actualiza la hora actual (llamar antes de receiveMessage)
+    void setCurrentTime(const String& timeStr) { _currentTime = timeStr; }
+
     // Getters
     EmotionState getEmotion()      { return _emotion; }
     String       getName()         { return _name; }
@@ -90,7 +93,8 @@ private:
     String  _personality;
     String  _statusLine;
     String  _lastResponse;
-    String  _repoConfigCache;  // config.h leído del repo (pines, etc.)
+    String  _repoConfigCache;
+    String  _currentTime;     // Hora/fecha actual desde NTP
     int     _evolutionLevel;       // 0-100, cuánto ha evolucionado
     uint32_t _lastEvolutionTime;   // última vez que se auto-reescribió
     uint32_t _interactionsSinceEvolution; // interacciones desde última evolución

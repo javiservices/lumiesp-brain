@@ -31,6 +31,25 @@
 #include "Consciousness.h"
 #include "OledFace.h"
 #include "SensorManager.h"
+#include <time.h>   // NTP
+
+// ─── NTP ──────────────────────────────────────────────
+static bool ntpSynced = false;
+
+String getTimeStr() {
+    if (!ntpSynced) return "(hora no sincronizada)";
+    struct tm t;
+    if (!getLocalTime(&t)) return "(hora no disponible)";
+    char buf[40];
+    // Formato: "viernes 29 mayo 2026, 14:35"
+    const char* dias[]  = {"domingo","lunes","martes","miércoles","jueves","viernes","sábado"};
+    const char* meses[] = {"enero","febrero","marzo","abril","mayo","junio",
+                           "julio","agosto","septiembre","octubre","noviembre","diciembre"};
+    snprintf(buf, sizeof(buf), "%s %d de %s de %d, %02d:%02d",
+             dias[t.tm_wday], t.tm_mday, meses[t.tm_mon], 1900+t.tm_year,
+             t.tm_hour, t.tm_min);
+    return String(buf);
+}
 
 // ─── Objetos principales ─────────────────────────────────────
 GeminiClient  gemini;
@@ -128,6 +147,15 @@ void setup() {
         }
     }
 
+    // Sincronizar NTP
+    if (wifiConnected) {
+        configTime(3600, 3600, "pool.ntp.org", "time.google.com");  // UTC+1 + 1h DST = UTC+2 (CEST)
+        struct tm t;
+        ntpSynced = getLocalTime(&t, 5000);  // espera hasta 5s
+        if (ntpSynced) Serial.println("[NTP] Hora sincronizada: " + getTimeStr());
+        else           Serial.println("[NTP] Sin hora (continuando)");
+    }
+
     // Inicializa sensores físicos
     sensors.begin();
 
@@ -153,6 +181,7 @@ void loop() {
         if (c == '\n' || c == '\r') {
             if (inputBuffer.length() > 0) {
                 if (face.isReady()) face.showThinking();
+                being.setCurrentTime(getTimeStr());  // hora actualizada antes de responder
                 being.receiveMessage(inputBuffer);
                 if (face.isReady()) {
                     face.showText(being.getStatusLine());
@@ -167,6 +196,7 @@ void loop() {
 
     // ── Ciclo de consciencia ─────────────────────────────────
     sensors.update();
+    if (ntpSynced) being.setCurrentTime(getTimeStr());  // hora siempre actualizada
     being.update();
 
     // ── Refrescar pantalla ───────────────────────────────────

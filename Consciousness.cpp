@@ -511,6 +511,9 @@ String Consciousness::_buildSystemPrompt() {
     prompt += "SISTEMA:\n";
     prompt += "- CPU: 240MHz | RAM libre: ~" + String(ESP.getFreeHeap()/1024) + "KB";
     prompt += " | WiFi: " + String(_wifiConnected ? "conectado" : "sin conexión") + "\n";
+    if (_currentTime.length() > 5) {
+        prompt += "- Fecha y hora actual: " + _currentTime + "\n";
+    }
     prompt += "- Nivel evolución: " + String(_evolutionLevel);
     prompt += " | Interacciones: " + String(_totalInteractions) + "\n";
     prompt += "- Tu repo GitHub: https://github.com/javiservices/lumiesp-brain\n\n";

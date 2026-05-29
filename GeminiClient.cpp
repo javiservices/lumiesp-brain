@@ -155,6 +155,58 @@ String GeminiClient::ask(const String& userMessage) {
         https.end();
     }
 
+#elif defined(AI_BACKEND_OLLAMA)
+    // ── OLLAMA (local, ilimitado) ─────────────────────────────
+    String ollamaUrl = "http://";
+    ollamaUrl += OLLAMA_HOST;
+    ollamaUrl += ":";
+    ollamaUrl += String(OLLAMA_PORT);
+    ollamaUrl += "/api/chat";
+
+    WiFiClient plainClient;  // Ollama local = HTTP plano, sin TLS
+    HTTPClient ollamaHttp;
+    ollamaHttp.begin(plainClient, ollamaUrl);
+    ollamaHttp.addHeader("Content-Type", "application/json");
+    ollamaHttp.setTimeout(GEMINI_TIMEOUT);
+
+    // Ollama usa el mismo formato OpenAI-chat pero con "stream":false
+    JsonDocument doc;
+    doc["model"]  = OLLAMA_MODEL;
+    doc["stream"] = false;
+    JsonArray msgs = doc["messages"].to<JsonArray>();
+    msgs.add<JsonObject>()["role"]    = "system";
+    msgs[0]["content"] = _systemPrompt;
+    for (int i = 0; i < _historyCount; i++) {
+        JsonObject m = msgs.add<JsonObject>();
+        m["role"]    = (_history[i].role == "model") ? "assistant" : "user";
+        m["content"] = _history[i].text;
+    }
+    JsonObject um = msgs.add<JsonObject>();
+    um["role"]    = "user";
+    um["content"] = userMessage;
+    String ollamaPayload;
+    serializeJson(doc, ollamaPayload);
+
+    _lastHttpCode = ollamaHttp.POST(ollamaPayload);
+    if (_lastHttpCode == HTTP_CODE_OK) {
+        String body = ollamaHttp.getString();
+        ollamaHttp.end();
+        JsonDocument rd;
+        if (!deserializeJson(rd, body)) {
+            String text = rd["message"]["content"].as<String>();
+            if (text.length() > 0) {
+                _addToHistory("user", userMessage);
+                _addToHistory("model", text);
+                _requestCount++;
+                response = text;
+            }
+        }
+    } else {
+        Serial.printf("[Ollama] Error HTTP: %d\n", _lastHttpCode);
+        if (_lastHttpCode > 0) Serial.println("[Ollama] Body: " + ollamaHttp.getString());
+        ollamaHttp.end();
+    }
+
 #else
     // ── GEMINI ────────────────────────────────────────────────
     String url = "https://";

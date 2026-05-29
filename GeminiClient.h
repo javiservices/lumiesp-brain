@@ -14,10 +14,23 @@
 //   AI_BACKEND_GROQ    → Groq + Llama3 (gratis, sin restricciones IP)
 
 #define GEMINI_HOST     "generativelanguage.googleapis.com"
-#define GEMINI_MODEL    "gemini-2.5-flash"
+#define GEMINI_MODEL    "gemini-2.0-flash"
 
 #define GROQ_HOST       "api.groq.com"
 #define GROQ_MODEL      "openai/gpt-oss-120b"
+
+// Ollama: host y model se definen en config.h
+#ifdef AI_BACKEND_OLLAMA
+  #ifndef OLLAMA_HOST
+    #define OLLAMA_HOST  "192.168.1.100"
+  #endif
+  #ifndef OLLAMA_PORT
+    #define OLLAMA_PORT  11434
+  #endif
+  #ifndef OLLAMA_MODEL
+    #define OLLAMA_MODEL "llama3.2:3b"
+  #endif
+#endif
 
 #define GEMINI_TIMEOUT  20000
 #define MAX_HISTORY     20
