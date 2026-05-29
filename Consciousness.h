@@ -4,6 +4,7 @@
 #include "GeminiClient.h"
 #include "CloudMemory.h"
 #include "GitHubCode.h"
+#include "SensorManager.h"
 
 // ─────────────────────────────────────────────
 //  Consciousness
@@ -46,7 +47,10 @@ public:
     Consciousness();
 
     // Inicializa el ser. En primer arranque, crea su identidad.
-    void begin(GeminiClient* gemini, bool hasWifi, CloudMemory* cloud = nullptr, GitHubCode* codeRepo = nullptr);
+    void begin(GeminiClient* gemini, bool hasWifi, CloudMemory* cloud = nullptr, GitHubCode* codeRepo = nullptr, SensorManager* sensors = nullptr);
+
+    // Registra el gestor de sensores (llama tras begin)
+    void setSensors(SensorManager* sensors) { _sensors = sensors; }
 
     // Llamar en el loop principal
     void update();
@@ -77,6 +81,7 @@ private:
     GeminiClient*  _gemini;
     CloudMemory*   _cloud;
     GitHubCode*    _codeRepo;
+    SensorManager* _sensors;
     Preferences    _prefs;
     EmotionState   _emotion;
     HardwarePhase  _hwPhase;

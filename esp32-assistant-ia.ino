@@ -30,6 +30,7 @@
 #include "GitHubCode.h"
 #include "Consciousness.h"
 #include "OledFace.h"
+#include "SensorManager.h"
 
 // ─── Objetos principales ─────────────────────────────────────
 GeminiClient  gemini;
@@ -37,6 +38,7 @@ CloudMemory   cloud;
 GitHubCode    codeRepo;
 Consciousness being;
 OledFace      face;
+SensorManager sensors;
 
 // ─── Estado WiFi ─────────────────────────────────────────────
 bool wifiConnected    = false;
@@ -126,8 +128,11 @@ void setup() {
         }
     }
 
+    // Inicializa sensores físicos
+    sensors.begin();
+
     // Despierta al ser
-    being.begin(&gemini, wifiConnected, cloudReady ? &cloud : nullptr, repoReady ? &codeRepo : nullptr);
+    being.begin(&gemini, wifiConnected, cloudReady ? &cloud : nullptr, repoReady ? &codeRepo : nullptr, &sensors);
 
     // Actualiza pantalla con nombre e identidad real
     if (face.isReady()) {
@@ -161,6 +166,7 @@ void loop() {
     }
 
     // ── Ciclo de consciencia ─────────────────────────────────
+    sensors.update();
     being.update();
 
     // ── Refrescar pantalla ───────────────────────────────────

@@ -10,6 +10,7 @@ Consciousness::Consciousness()
     : _gemini(nullptr),
       _cloud(nullptr),
       _codeRepo(nullptr),
+      _sensors(nullptr),
       _emotion(EMOTION_IDLE),
       _hwPhase(HW_PHASE_0),
       _wifiConnected(false),
@@ -27,7 +28,8 @@ Consciousness::Consciousness()
 // ─────────────────────────────────────────────────────────────
 //  INICIO
 // ─────────────────────────────────────────────────────────────
-void Consciousness::begin(GeminiClient* gemini, bool hasWifi, CloudMemory* cloud, GitHubCode* codeRepo) {
+void Consciousness::begin(GeminiClient* gemini, bool hasWifi, CloudMemory* cloud, GitHubCode* codeRepo, SensorManager* sensors) {
+    _sensors = sensors;
     _gemini   = gemini;
     _cloud    = cloud;
     _codeRepo = codeRepo;
@@ -282,21 +284,24 @@ void Consciousness::receiveMessage(const String& msg) {
         lowerResp.toLowerCase();
         lowerMsg.toLowerCase();
 
-        // Palabras clave de sensores/hardware
+        // hwMention: solo cuando el USUARIO explícitamente menciona un sensor/hardware nuevo
+        // que LumiESP debería soportar — no al hablar de sensores en abstracto
         bool hwMention =
-            lowerResp.indexOf("temperatura") >= 0 || lowerMsg.indexOf("temperatura") >= 0 ||
-            lowerResp.indexOf("humedad")     >= 0 || lowerMsg.indexOf("humedad")     >= 0 ||
-            lowerResp.indexOf("sensor")      >= 0 || lowerMsg.indexOf("sensor")      >= 0 ||
-            lowerResp.indexOf("dht")         >= 0 || lowerMsg.indexOf("dht")         >= 0 ||
-            lowerResp.indexOf("sht")         >= 0 || lowerMsg.indexOf("sht")         >= 0 ||
-            lowerResp.indexOf("distancia")   >= 0 || lowerMsg.indexOf("distancia")   >= 0 ||
-            lowerResp.indexOf("movimiento")  >= 0 || lowerMsg.indexOf("movimiento")  >= 0 ||
-            lowerResp.indexOf("ultrasonico") >= 0 || lowerMsg.indexOf("ultrasonico") >= 0 ||
-            lowerResp.indexOf("pir")         >= 0 || lowerMsg.indexOf("pir")         >= 0 ||
-            lowerResp.indexOf("luz")         >= 0 || lowerMsg.indexOf("luz")         >= 0 ||
-            lowerResp.indexOf("presion")     >= 0 || lowerMsg.indexOf("presion")     >= 0 ||
-            lowerResp.indexOf("bme")         >= 0 || lowerMsg.indexOf("bme")         >= 0 ||
-            lowerResp.indexOf("bmp")         >= 0 || lowerMsg.indexOf("bmp")         >= 0;
+            lowerMsg.indexOf("conecta") >= 0 ||
+            lowerMsg.indexOf("instala") >= 0 ||
+            lowerMsg.indexOf("añade")   >= 0 ||
+            lowerMsg.indexOf("añadir")  >= 0 ||
+            lowerMsg.indexOf("nuevo sensor")   >= 0 ||
+            lowerMsg.indexOf("nueva pantalla")  >= 0 ||
+            lowerMsg.indexOf("nuevo modulo")    >= 0 ||
+            lowerMsg.indexOf("nuevo módulo")    >= 0 ||
+            lowerMsg.indexOf("puedes leer")     >= 0 ||
+            lowerMsg.indexOf("puedes medir")    >= 0 ||
+            lowerMsg.indexOf("soporte para")    >= 0 ||
+            lowerMsg.indexOf("implementa")      >= 0 ||
+            (lowerMsg.indexOf("dht")   >= 0 && lowerMsg.indexOf("conect") >= 0) ||
+            (lowerMsg.indexOf("bme")   >= 0 && lowerMsg.indexOf("conect") >= 0) ||
+            (lowerMsg.indexOf("sensor") >= 0 && (lowerMsg.indexOf("conect") >= 0 || lowerMsg.indexOf("nuevo") >= 0));
 
         // ── Detectar y guardar hechos del creador ────────────────
         String lowerMsgFull = msg;
@@ -469,6 +474,15 @@ String Consciousness::_buildSystemPrompt() {
     anyHw = true;
 #endif
     if (!anyHw) prompt += "- (ninguno aún, solo ESP32 + WiFi + Serial)\n";
+
+    // Lecturas actuales de sensores
+    if (_sensors) {
+        String sensorSummary = _sensors->summary();
+        if (sensorSummary.length() > 0) {
+            prompt += "\nLECTURAS ACTUALES DE SENSORES (datos reales en este momento):\n";
+            prompt += sensorSummary;
+        }
+    }
 
     prompt += "\nHARDWARE PENDIENTE DE CONECTAR (está pedido pero NO enchufado todavía):\n";
 #if !HW_OLED
