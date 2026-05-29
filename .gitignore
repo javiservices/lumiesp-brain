@@ -1,13 +1,3 @@
-# Credenciales — NUNCA subir
-firmware/config.h
-
-# Builds de Arduino
-firmware/build/
-*.elf
-*.bin
-*.map
-
-# Python
-__pycache__/
-*.pyc
-nohup.out
+config.h
+.pio/
+build/
