@@ -60,7 +60,7 @@ void Consciousness::begin(GeminiClient* gemini, bool hasWifi, CloudMemory* cloud
             pins = _codeRepo->readFile("docs/pins_reference.md", "main");
         }
         // Código propio (extracto de Consciousness.cpp para auto-conocimiento)
-        String selfCode = _codeRepo->readFile("src/Consciousness.cpp", "main");
+        String selfCode = _codeRepo->readFile("firmware/Consciousness.cpp", "main");
         // Guardamos solo los primeros 2000 chars para no saturar el prompt
         _repoConfigCache = "";
         if (pins.length() > 10) {
@@ -666,7 +666,7 @@ void Consciousness::_proposeFeature(const String& description,
     // Leer código existente del repo para que la IA tenga contexto real
     String existingCode = "";
     if (filename.length() > 2) {
-        existingCode = _codeRepo->readFile("src/" + filename, "main");
+        existingCode = _codeRepo->readFile("firmware/" + filename, "main");
         if (existingCode.length() > 10) {
             existingCode = existingCode.substring(0, 1500);
         }
