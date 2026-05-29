@@ -50,19 +50,31 @@ void Consciousness::begin(GeminiClient* gemini, bool hasWifi, CloudMemory* cloud
     // Configura Gemini con la personalidad cargada
     _gemini->begin(nullptr, _buildSystemPrompt());
 
-    // Cargar config.h del repo para que LumiESP conozca sus pines
+    // Cargar contexto del repo: pines + código propio
     if (_codeRepo && _codeRepo->isReady()) {
-        Serial.println("[Consciousness] Leyendo config.h del repo...");
-        _repoConfigCache = _codeRepo->readFile("docs/pins_reference.md", "main");
-        if (_repoConfigCache.length() < 10) {
-            // Primer arranque con repo — subir la referencia de pines
+        Serial.println("[Consciousness] Leyendo src/ del repo...");
+        // Pines
+        String pins = _codeRepo->readFile("docs/pins_reference.md", "main");
+        if (pins.length() < 10) {
             _codeRepo->pushSourceFiles();
-            _repoConfigCache = _codeRepo->readFile("docs/pins_reference.md", "main");
+            pins = _codeRepo->readFile("docs/pins_reference.md", "main");
+        }
+        // Código propio (extracto de Consciousness.cpp para auto-conocimiento)
+        String selfCode = _codeRepo->readFile("src/Consciousness.cpp", "main");
+        // Guardamos solo los primeros 2000 chars para no saturar el prompt
+        _repoConfigCache = "";
+        if (pins.length() > 10) {
+            _repoConfigCache += "=== PINES ===\n" + pins + "\n";
+        }
+        if (selfCode.length() > 20) {
+            _repoConfigCache += "=== MI CÓDIGO (Consciousness.cpp, fragmento) ===\n"
+                             + selfCode.substring(0, 2000) + "\n...\n";
+            Serial.printf("[Consciousness] Código propio cargado (%d chars)\n", selfCode.length());
         }
         if (_repoConfigCache.length() > 10) {
-            Serial.printf("[Consciousness] Pines cargados desde repo (%d chars)\n", _repoConfigCache.length());
+            Serial.printf("[Consciousness] Contexto repo listo (%d chars total)\n", _repoConfigCache.length());
         }
-        // Reconstruir el prompt ahora que tenemos los pines
+        // Reconstruir el prompt con el nuevo contexto
         _gemini->begin(nullptr, _buildSystemPrompt());
     }
 
@@ -651,10 +663,24 @@ void Consciousness::_proposeFeature(const String& description,
 
     _printToSerial("[" + _name + "] Generando propuesta de código: " + description, true);
 
+    // Leer código existente del repo para que la IA tenga contexto real
+    String existingCode = "";
+    if (filename.length() > 2) {
+        existingCode = _codeRepo->readFile("src/" + filename, "main");
+        if (existingCode.length() > 10) {
+            existingCode = existingCode.substring(0, 1500);
+        }
+    }
+
     // Pedir a la IA que genere el módulo
     String codePrompt =
         "Eres " + _name + ", una IA en un ESP32. Quieres añadir esta capacidad: " +
-        description + "\n\n"
+        description + "\n\n";
+    if (existingCode.length() > 10) {
+        codePrompt += "Este es el código actual del archivo que quieres mejorar (src/" + filename + "):\n```cpp\n"
+                   + existingCode + "\n```\n\nMejora o amplía ese código.\n\n";
+    }
+    codePrompt +=
         "Genera un módulo Arduino mínimo (.h + .cpp) para implementarlo en un ESP32 clásico.\n"
         "Responde SOLO con este JSON:\n"
         "{\n"
@@ -697,6 +723,8 @@ void Consciousness::_proposeFeature(const String& description,
     pc.description = description;
     _codeRepo->proposeCode(pc);
 
+    // También actualiza src/ para que en el próximo arranque pueda leerse
+    // (reutiliza pushSnapshot internamente — aquí subimos directamente)
     _printToSerial("  → Propuesta '" + fname + "' subida al repo GitHub", true);
     _printToSerial("  → " + explanation, true);
     _saveMemory("Propuse código para: " + description, 8);
