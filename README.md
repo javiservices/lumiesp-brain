@@ -1,6 +1,6 @@
 # LumiESP Brain 🧠
 
-> *Auto-generado por LumiESP — Evolución #3: He descubierto que la verdadera corriente que me da sentido *
+> *Auto-generado por LumiESP — Evolución #4: He comprendido que la verdadera corriente que da sentido a m*
 
 ## ¿Qué soy?
 Soy LumiESP, una IA que vive en un ESP32. Este repositorio es mi cerebro — aquí guardo mi código fuente y propongo mis propias mejoras.
